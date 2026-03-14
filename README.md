@@ -1,127 +1,84 @@
-# Escuela Colombiana de Ingeniería Julio Garavito
-## Arquitectura de Software – ARSW
-### Laboratorio – Parte 2: BluePrints API con Seguridad JWT (OAuth 2.0)
+## Laboratorio – Parte 2: BluePrints API con Seguridad JWT (OAuth 2.0)
 
-Este laboratorio extiende la **Parte 1** ([Lab_P1_BluePrints_Java21_API](https://github.com/DECSIS-ECI/Lab_P1_BluePrints_Java21_API)) agregando **seguridad a la API** usando **Spring Boot 3, Java 21 y JWT (OAuth 2.0)**.  
-El API se convierte en un **Resource Server** protegido por tokens Bearer firmados con **RS256**.  
-Incluye un endpoint didáctico `/auth/login` que emite el token para facilitar las pruebas.
+### 1. Revisión del código de configuración de seguridad 
 
----
+En el archivo `SecurityConfig`, el método clave es el bean filterChain. Este es el que define la política de acceso:
 
-## Objetivos
-- Implementar seguridad en servicios REST usando **OAuth2 Resource Server**.
-- Configurar emisión y validación de **JWT**.
-- Proteger endpoints con **roles y scopes** (`blueprints.read`, `blueprints.write`).
-- Integrar la documentación de seguridad en **Swagger/OpenAPI**.
+- **Endpoints públicos:**
+Se definen con `.permitAll()`:
 
----
+  - `/auth/login`: para que el usuario pueda autenticarse.
+  - `/actuator/health`: para monitoreo del estado de la app.
+  - `/v3/api-docs/**`, `/swagger-ui/**`: para que la documentación sea accesible sin token.
+ 
+- **Endpoints protegidos:**
+Se definen con `.requestMatchers("/api/**")`:
 
-## Requisitos
-- JDK 21
-- Maven 3.9+
-- Git
+  - Cualquier petición a una URL que empiece por `/api/` requiere obligatoriamente que el token presente una autoridad (scope).
+  - `hasAnyAuthority("SCOPE_blueprints.read", "SCOPE_blueprints.write")`: el prefijo SCOPE_ lo añade Spring automáticamente al leer la claim "scope" del JWT.
 
----
+### 2. Flujo del login y claims del JWT emitido
 
-## Ejecución del proyecto
-1. Clonar o descomprimir el proyecto:
-   ```bash
-   git clone https://github.com/DECSIS-ECI/Lab_P2_BluePrints_Java21_API_Security_JWT.git
-   cd Lab_P2_BluePrints_Java21_API_Security_JWT
-   ```
-   ó si el profesor entrega el `.zip`, descomprimirlo y entrar en la carpeta.
+Revisando el archivo `AuthController`, el flujo de autenticación sería:
 
-2. Ejecutar con Maven:
-   ```bash
-   mvn -q -DskipTests spring-boot:run
-   ```
+- El usuario envía un `POST /auth/login` con su username y password.
 
-3. Verificar que la aplicación levante en `http://localhost:8080`.
+- El controlador consulta el servicio de usuarios `InMemoryUserService` para verificar si las credenciales son correctas. Si no lo son responde con 401 Unauthorized y un mensaje de error.
 
----
+- Si las credenciales son válidas:
 
-## Endpoints principales
+  - Se calcula el tiempo actual (issuedAt) y el tiempo de expiración (expiresAt) según la configuración (tokenTtlSeconds).
+  - Se definen los permisos (scope) que tendrá el token.
+  - Se construye el conjunto de claims (`JwtClaimsSet`) con la información del usuario y la configuración.
+  - Se firma el token con el algoritmo RS256.
 
-### 1. Login (emite token)
-```
-POST http://localhost:8080/auth/login
-Content-Type: application/json
+- El servidor devuelve un objeto con el access_token (el JWT), el tipo de token (Bearer) y el tiempo de expiración.
 
-{
-  "username": "student",
-  "password": "student123"
-}
-```
-Respuesta:
-```json
-{
-  "access_token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "token_type": "Bearer",
-  "expires_in": 3600
-}
-```
+Por otro lado, los claims del JWT son:
 
-### 2. Consultar blueprints (requiere scope `blueprints.read`)
-```
-GET http://localhost:8080/api/blueprints
-Authorization: Bearer <ACCESS_TOKEN>
-```
+- issuer: identifica quién emitió el token.
 
-### 3. Crear blueprint (requiere scope `blueprints.write`)
-```
-POST http://localhost:8080/api/blueprints
-Authorization: Bearer <ACCESS_TOKEN>
-Content-Type: application/json
+- issuedAt: momento en que se generó el token.
 
-{
-  "name": "Nuevo Plano"
-}
-```
+- expiresAt: momento en que expira el token.
 
----
+- subject: el nombre de usuario autenticado.
 
-## Swagger UI
-- URL: [http://localhost:8080/swagger-ui/index.html](http://localhost:8080/swagger-ui/index.html)
-- Pulsa **Authorize**, ingresa el token en el formato:
-  ```
-  Bearer eyJhbGciOi...
-  ```
+- scope (custom claim): lista de permisos asociados al token, en este caso "blueprints.read blueprints.write".
 
----
+### 3. Extensión de scopes
 
-## Estructura del proyecto
-```
-src/main/java/co/edu/eci/blueprints/
-  ├── api/BlueprintController.java       # Endpoints protegidos
-  ├── auth/AuthController.java           # Login didáctico para emitir tokens
-  ├── config/OpenApiConfig.java          # Configuración Swagger + JWT
-  └── security/
-       ├── SecurityConfig.java
-       ├── MethodSecurityConfig.java
-       ├── JwtKeyProvider.java
-       ├── InMemoryUserService.java
-       └── RsaKeyProperties.java
-src/main/resources/
-  └── application.yml
-```
+En esta etapa se integró la lógica de negocio de la parte 1 del laboratorio con la parte 2.
 
----
+Cambios realizados:
+* **Seguridad de método:** se implementaron las anotaciones `@PreAuthorize` en el controlador `BlueprintsController` para restringir el acceso según los privilegios del usuario.
+* **Definición de scopes:**
+    * `blueprints.read`: requerido para todos los endpoints de consulta (`GET`).
+    * `blueprints.write`: requerido para la creación y modificación de planos (`POST`, `PUT`).
 
-## Actividades propuestas
-1. Revisar el código de configuración de seguridad (`SecurityConfig`) e identificar cómo se definen los endpoints públicos y protegidos.
-2. Explorar el flujo de login y analizar las claims del JWT emitido.
-3. Extender los scopes (`blueprints.read`, `blueprints.write`) para controlar otros endpoints de la API, del laboratorio P1 trabajado.
-4. Modificar el tiempo de expiración del token y observar el efecto.
-5. Documentar en Swagger los endpoints de autenticación y de negocio.
+Ejemplo de uso:
+* **Obtener token:** `POST /auth/login` con credenciales válidas.
+* **Consumir API:** Usar el token como `Bearer Token` en la cabecera de la petición hacia `/api/v2/blueprints`.
 
----
+### 4. Modificación del tiempo de expiración del token
 
-## Lecturas recomendadas
-- [Spring Security Reference – OAuth2 Resource Server](https://docs.spring.io/spring-security/reference/servlet/oauth2/resource-server/index.html)
-- [Spring Boot – Securing Web Applications](https://spring.io/guides/gs/securing-web/)
-- [JSON Web Tokens – jwt.io](https://jwt.io/introduction)
+Se configuró el tiempo de vida de los tokens JWT. 
 
----
+- Configuración: `token-ttl-seconds: 60`
+- Verificación: Se comprobó mediante Postman que, tras superar los 60 segundos de inactividad del token, el servidor de recursos rechaza las peticiones, obligando a una nueva autenticación.
 
-## Licencia
-Proyecto educativo con fines académicos – Escuela Colombiana de Ingeniería Julio Garavito.
+Aquí se hace el login en Postman (POST /auth/login) y se copia el token.
+![POST](images/POST.png)
+
+Se usa el GET y el Status es 200 OK.
+![GET](images/GET.png)
+
+Se espera un minuto. Se vuelve a dar a Send en Postman con el mismo token. Y devuelve 401 Unauthorized.
+![GET2](images/GET_nuevamente.png)
+
+### 5. Documentación de endpoints de negocio y de autenticación
+
+Se encuentra disponible en http://localhost:8080/swagger-ui/index.html
+
+### Diagrama de componentes
+
