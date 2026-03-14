@@ -82,3 +82,5 @@ Se encuentra disponible en http://localhost:8080/swagger-ui/index.html
 
 ### Diagrama de componentes
 
+![Components.png](images/Components.png)
+
