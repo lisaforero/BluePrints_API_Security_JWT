@@ -5,7 +5,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.Map;
-
+/*
 @RestController
 @RequestMapping("/api/blueprints")
 public class BlueprintController {
@@ -25,3 +25,4 @@ public class BlueprintController {
         return Map.of("id", "new", "name", in.getOrDefault("name", "nuevo"));
     }
 }
+*/

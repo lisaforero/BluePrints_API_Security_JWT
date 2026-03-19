@@ -18,7 +18,7 @@ import jakarta.validation.constraints.NotBlank;
 import java.util.Set;
 
 @RestController
-@RequestMapping("/api/v2/blueprints")
+@RequestMapping("/api/blueprints")
 @Tag(name = "Blueprints", description = "Business endpoints for blueprint management")
 public class BlueprintsController {
 
