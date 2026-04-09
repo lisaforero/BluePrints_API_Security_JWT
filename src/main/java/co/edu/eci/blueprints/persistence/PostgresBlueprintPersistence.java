@@ -85,6 +85,35 @@ public class PostgresBlueprintPersistence implements BlueprintPersistence {
     }
 
     @Override
+    public void updateBlueprint(Blueprint bp) throws BlueprintNotFoundException {
+        BlueprintEntity entity =
+                blueprintRepository.findByAuthorAndName(bp.getAuthor(), bp.getName());
+
+        if (entity == null) {
+            throw new BlueprintNotFoundException("Blueprint not found");
+        }
+
+        entity.getPoints().clear();
+        for (Point p : bp.getPoints()) {
+            entity.addPoint(new PointEntity(p.x(), p.y()));
+        }
+
+        blueprintRepository.save(entity);
+    }
+
+    @Override
+    public void deleteBlueprint(String author, String name) throws BlueprintNotFoundException {
+        BlueprintEntity entity =
+                blueprintRepository.findByAuthorAndName(author, name);
+
+        if (entity == null) {
+            throw new BlueprintNotFoundException("Blueprint not found");
+        }
+
+        blueprintRepository.delete(entity);
+    }
+
+    @Override
     public void addPoint(String author, String name, int x, int y)
             throws BlueprintNotFoundException {
 

@@ -15,6 +15,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 
+import java.util.List;
 import java.util.Set;
 
 @RestController
@@ -34,6 +35,21 @@ public class BlueprintsController {
     public ResponseEntity<ApiResponseLab<Set<Blueprint>>> getAll() {
         Set<Blueprint> data = services.getAllBlueprints();
         return ResponseEntity.ok(new ApiResponseLab<>(200, "execute ok", data));
+    }
+
+    @Operation(summary = "Get all blueprints by author with total points")
+    @GetMapping(params = "author")
+    @PreAuthorize("hasAuthority('SCOPE_blueprints.read')")
+    public ResponseEntity<ApiResponseLab<?>> byAuthorQuery(@RequestParam("author") String author) {
+        try {
+            var data = services.getBlueprintsByAuthor(author).stream()
+                    .map(bp -> new BlueprintSummaryResponse(bp.getAuthor(), bp.getName(), bp.getPoints().size()))
+                    .toList();
+            return ResponseEntity.ok(new ApiResponseLab<>(200, "execute ok", data));
+        } catch (BlueprintNotFoundException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(new ApiResponseLab<>(404, e.getMessage(), null));
+        }
     }
 
     @Operation(summary = "Get all blueprints by author")
@@ -91,10 +107,49 @@ public class BlueprintsController {
                     .body(new ApiResponseLab<>(404, e.getMessage(), null));
         }
     }
+
+    @Operation(summary = "Update an existing blueprint")
+    @PutMapping("/{author}/{bpname}")
+    @PreAuthorize("hasAuthority('SCOPE_blueprints.write')")
+    public ResponseEntity<?> update(@PathVariable String author,
+                                    @PathVariable String bpname,
+                                    @Valid @RequestBody UpdateBlueprintRequest req) {
+        try {
+            Blueprint updated = new Blueprint(author, bpname, req.points());
+            services.updateBlueprint(updated);
+            return ResponseEntity.ok(new ApiResponseLab<>(200, "updated", updated));
+        } catch (BlueprintNotFoundException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(new ApiResponseLab<>(404, e.getMessage(), null));
+        }
+    }
+
+    @Operation(summary = "Delete an existing blueprint")
+    @DeleteMapping("/{author}/{bpname}")
+    @PreAuthorize("hasAuthority('SCOPE_blueprints.write')")
+    public ResponseEntity<?> delete(@PathVariable String author, @PathVariable String bpname) {
+        try {
+            services.deleteBlueprint(author, bpname);
+            return ResponseEntity.noContent().build();
+        } catch (BlueprintNotFoundException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(new ApiResponseLab<>(404, e.getMessage(), null));
+        }
+    }
     
     public record NewBlueprintRequest(
             @NotBlank String author,
             @NotBlank String name,
             @Valid java.util.List<Point> points
     ) { }
+
+        public record UpdateBlueprintRequest(
+            @Valid List<Point> points
+        ) { }
+
+        public record BlueprintSummaryResponse(
+            String author,
+            String name,
+            int totalPoints
+        ) { }
 }
