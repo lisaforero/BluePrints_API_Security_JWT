@@ -19,7 +19,7 @@ import java.util.List;
 import java.util.Set;
 
 @RestController
-@RequestMapping("/api/v2/blueprints")
+@RequestMapping({"/api/v3/blueprints"})
 @Tag(name = "Blueprints", description = "Business endpoints for blueprint management")
 public class BlueprintsController {
 
